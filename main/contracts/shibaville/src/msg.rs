@@ -1,26 +1,18 @@
-use cosmwasm_schema::{cw_serde, QueryResponses};
+use serde::{Deserialize, Serialize};
 
-#[cw_serde]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct InstantiateMsg {
-    pub count: i32,
+    pub admin: String,
+    pub ville_nft_contract: String,
+    pub building_nft_contract: String,
+    pub resource_token_contract: String,
+    pub unit_token_contract: String,
 }
 
-#[cw_serde]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub enum ExecuteMsg {
-    Increment {},
-    Reset { count: i32 },
-}
-
-#[cw_serde]
-#[derive(QueryResponses)]
-pub enum QueryMsg {
-    // GetCount returns the current count as a json-encoded number
-    #[returns(GetCountResponse)]
-    GetCount {},
-}
-
-// We define a custom struct for each query response
-#[cw_serde]
-pub struct GetCountResponse {
-    pub count: i32,
+    RegisterPlayer { archid: String },
+    MintVille { ville_metadata: String },
+    MintBuilding { ville_id: u64, building_metadata: String },
+    PlaceBuilding { ville_id: u64, building_id: u64 },
 }
