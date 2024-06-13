@@ -6,6 +6,18 @@ pub enum ContractError {
     #[error("{0}")]
     Std(#[from] StdError),
 
+    #[error("TokenAlreadyExists")]
+    TokenAlreadyExists {},
+
+    #[error("TokenDoesNotExist")]
+    TokenDoesNotExist {},
+    
+    #[error("InsufficientFunds")]
+    InsufficientFunds {},
+
+    #[error("unknown data store error")]
+    Unknown,
+    
     #[error("Unauthorized")]
     Unauthorized {},
     // Add any other custom errors you like here.
