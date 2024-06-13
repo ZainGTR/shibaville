@@ -1,13 +1,15 @@
 #[cfg(not(feature = "library"))]
-use cosmwasm_std::entry_point;
-use cosmwasm_std::{to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdResult};
-use cw2::set_contract_version;
+use cosmwasm_std::{
+    entry_point, to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdResult, Addr, WasmMsg,
+};
+
+use serde::{Deserialize, Serialize};
+
 
 use crate::error::ContractError;
-use crate::msg::{ExecuteMsg, GetCountResponse, InstantiateMsg, QueryMsg};
-use crate::state::{State, STATE};
+use crate::msg::{ExecuteMsg, InstantiateMsg};
+use crate::state::{Config, Player, CONFIG, PLAYERS, VILLE_COUNT, BUILDING_COUNT};
 
-// version info for migration info
 const CONTRACT_NAME: &str = "crates.io:shibaville";
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
@@ -15,142 +17,172 @@ const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 pub fn instantiate(
     deps: DepsMut,
     _env: Env,
-    info: MessageInfo,
+    _info: MessageInfo,
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
-    let state = State {
-        count: msg.count,
-        owner: info.sender.clone(),
-    };
-    set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
-    STATE.save(deps.storage, &state)?;
+    let admin = deps.api.addr_validate(&msg.admin)?;
+    let ville_nft_contract = deps.api.addr_validate(&msg.ville_nft_contract)?;
+    let building_nft_contract = deps.api.addr_validate(&msg.building_nft_contract)?;
+    let resource_token_contract = deps.api.addr_validate(&msg.resource_token_contract)?;
+    let unit_token_contract = deps.api.addr_validate(&msg.unit_token_contract)?;
 
-    Ok(Response::new()
-        .add_attribute("method", "instantiate")
-        .add_attribute("owner", info.sender)
-        .add_attribute("count", msg.count.to_string()))
+    let config = Config {
+        admin,
+        ville_nft_contract,
+        building_nft_contract,
+        resource_token_contract,
+        unit_token_contract,
+    };
+    CONFIG.save(deps.storage, &config)?;
+
+    VILLE_COUNT.save(deps.storage, &0u64)?;
+    BUILDING_COUNT.save(deps.storage, &0u64)?;
+
+    Ok(Response::new().add_attribute("method", "instantiate"))
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
     deps: DepsMut,
-    _env: Env,
+    env: Env,
     info: MessageInfo,
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
     match msg {
-        ExecuteMsg::Increment {} => execute::increment(deps),
-        ExecuteMsg::Reset { count } => execute::reset(deps, info, count),
+        ExecuteMsg::RegisterPlayer { archid } => try_register_player(deps, env, info, archid),
+        ExecuteMsg::MintVille { ville_metadata } => try_mint_ville(deps, env, info, ville_metadata),
+        ExecuteMsg::MintBuilding { ville_id, building_metadata } => try_mint_building(deps, env, info, ville_id, building_metadata),
+        ExecuteMsg::PlaceBuilding { ville_id, building_id } => try_place_building(deps, env, info, ville_id, building_id),
     }
 }
 
-pub mod execute {
-    use super::*;
+fn try_register_player(
+    deps: DepsMut,
+    _env: Env,
+    info: MessageInfo,
+    archid: String,
+) -> Result<Response, ContractError> {
+    let address = info.sender.clone();
 
-    pub fn increment(deps: DepsMut) -> Result<Response, ContractError> {
-        STATE.update(deps.storage, |mut state| -> Result<_, ContractError> {
-            state.count += 1;
-            Ok(state)
-        })?;
-
-        Ok(Response::new().add_attribute("action", "increment"))
+    if PLAYERS.has(deps.storage, &address) {
+        return Err(ContractError::PlayerAlreadyRegistered {});
     }
 
-    pub fn reset(deps: DepsMut, info: MessageInfo, count: i32) -> Result<Response, ContractError> {
-        STATE.update(deps.storage, |mut state| -> Result<_, ContractError> {
-            if info.sender != state.owner {
-                return Err(ContractError::Unauthorized {});
-            }
-            state.count = count;
-            Ok(state)
-        })?;
-        Ok(Response::new().add_attribute("action", "reset"))
-    }
+    let player = Player {
+        address: info.sender.clone(),
+        ville_id: None,
+    };
+
+    PLAYERS.save(deps.storage, &address, &player)?;
+
+    Ok(Response::new()
+        .add_attribute("method", "register_player")
+        .add_attribute("player", info.sender.to_string())
+        .add_attribute("archid", archid))
 }
 
-#[cfg_attr(not(feature = "library"), entry_point)]
-pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
-    match msg {
-        QueryMsg::GetCount {} => to_binary(&query::count(deps)?),
+fn try_mint_ville(
+    deps: DepsMut,
+    _env: Env,
+    info: MessageInfo,
+    ville_metadata: String,
+) -> Result<Response, ContractError> {
+    let config = CONFIG.load(deps.storage)?;
+    let address = info.sender.clone();
+
+    if !PLAYERS.has(deps.storage, &address) {
+        return Err(ContractError::PlayerNotRegistered {});
     }
+
+    let mut player = PLAYERS.load(deps.storage, &address)?;
+    if player.ville_id.is_some() {
+        return Err(ContractError::VilleAlreadyMinted {});
+    }
+
+    let ville_id = VILLE_COUNT.load(deps.storage)? + 1;
+    VILLE_COUNT.save(deps.storage, &ville_id)?;
+
+    player.ville_id = Some(ville_id);
+    PLAYERS.save(deps.storage, &address, &player)?;
+
+    let mint_msg = MintMsg::<Option<state::Metadata>> {
+        token_id: ville_id.to_string(),
+        owner: info.sender.to_string(),
+        token_uri: None,
+        extension: Some(serde_json::from_str(&ville_metadata).unwrap()),
+    };
+
+    let exec_msg = WasmMsg::Execute {
+        contract_addr: config.ville_nft_contract.to_string(),
+        msg: to_binary(&cw721_base::ExecuteMsg::Mint(mint_msg))?,
+        funds: vec![],
+    };
+
+    Ok(Response::new()
+        .add_message(exec_msg)
+        .add_attribute("method", "mint_ville")
+        .add_attribute("owner", info.sender.to_string())
+        .add_attribute("ville_id", ville_id.to_string()))
 }
 
-pub mod query {
-    use super::*;
+fn try_mint_building(
+    deps: DepsMut,
+    _env: Env,
+    info: MessageInfo,
+    ville_id: u64,
+    building_metadata: String,
+) -> Result<Response, ContractError> {
+    let config = CONFIG.load(deps.storage)?;
+    let address = info.sender.clone();
 
-    pub fn count(deps: Deps) -> StdResult<GetCountResponse> {
-        let state = STATE.load(deps.storage)?;
-        Ok(GetCountResponse { count: state.count })
+    let player = PLAYERS.load(deps.storage, &address)?;
+    if player.ville_id != Some(ville_id) {
+        return Err(ContractError::Unauthorized {});
     }
+
+    let building_id = BUILDING_COUNT.load(deps.storage)? + 1;
+    BUILDING_COUNT.save(deps.storage, &building_id)?;
+
+    let mint_msg = MintMsg::<Option<state::Metadata>> {
+        token_id: building_id.to_string(),
+        owner: info.sender.to_string(),
+        token_uri: None,
+        extension: Some(serde_json::from_str(&building_metadata).unwrap()),
+    };
+
+    let exec_msg = WasmMsg::Execute {
+        contract_addr: config.building_nft_contract.to_string(),
+        msg: to_binary(&cw721_base::ExecuteMsg::Mint(mint_msg))?,
+        funds: vec![],
+    };
+
+    Ok(Response::new()
+        .add_message(exec_msg)
+        .add_attribute("method", "mint_building")
+        .add_attribute("owner", info.sender.to_string())
+        .add_attribute("building_id", building_id.to_string()))
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
-    use cosmwasm_std::{coins, from_binary};
+fn try_place_building(
+    deps: DepsMut,
+    _env: Env,
+    info: MessageInfo,
+    ville_id: u64,
+    building_id: u64,
+) -> Result<Response, ContractError> {
+    let config = CONFIG.load(deps.storage)?;
+    let address = info.sender.clone();
 
-    #[test]
-    fn proper_initialization() {
-        let mut deps = mock_dependencies();
-
-        let msg = InstantiateMsg { count: 17 };
-        let info = mock_info("creator", &coins(1000, "earth"));
-
-        // we can just call .unwrap() to assert this was a success
-        let res = instantiate(deps.as_mut(), mock_env(), info, msg).unwrap();
-        assert_eq!(0, res.messages.len());
-
-        // it worked, let's query the state
-        let res = query(deps.as_ref(), mock_env(), QueryMsg::GetCount {}).unwrap();
-        let value: GetCountResponse = from_binary(&res).unwrap();
-        assert_eq!(17, value.count);
+    let player = PLAYERS.load(deps.storage, &address)?;
+    if player.ville_id != Some(ville_id) {
+        return Err(ContractError::Unauthorized {});
     }
 
-    #[test]
-    fn increment() {
-        let mut deps = mock_dependencies();
+    // Here you would implement logic to burn resources and mint new resources
+    // based on the metadata of the building being placed.
 
-        let msg = InstantiateMsg { count: 17 };
-        let info = mock_info("creator", &coins(2, "token"));
-        let _res = instantiate(deps.as_mut(), mock_env(), info, msg).unwrap();
-
-        // beneficiary can release it
-        let info = mock_info("anyone", &coins(2, "token"));
-        let msg = ExecuteMsg::Increment {};
-        let _res = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
-
-        // should increase counter by 1
-        let res = query(deps.as_ref(), mock_env(), QueryMsg::GetCount {}).unwrap();
-        let value: GetCountResponse = from_binary(&res).unwrap();
-        assert_eq!(18, value.count);
-    }
-
-    #[test]
-    fn reset() {
-        let mut deps = mock_dependencies();
-
-        let msg = InstantiateMsg { count: 17 };
-        let info = mock_info("creator", &coins(2, "token"));
-        let _res = instantiate(deps.as_mut(), mock_env(), info, msg).unwrap();
-
-        // beneficiary can release it
-        let unauth_info = mock_info("anyone", &coins(2, "token"));
-        let msg = ExecuteMsg::Reset { count: 5 };
-        let res = execute(deps.as_mut(), mock_env(), unauth_info, msg);
-        match res {
-            Err(ContractError::Unauthorized {}) => {}
-            _ => panic!("Must return unauthorized error"),
-        }
-
-        // only the original creator can reset the counter
-        let auth_info = mock_info("creator", &coins(2, "token"));
-        let msg = ExecuteMsg::Reset { count: 5 };
-        let _res = execute(deps.as_mut(), mock_env(), auth_info, msg).unwrap();
-
-        // should now be 5
-        let res = query(deps.as_ref(), mock_env(), QueryMsg::GetCount {}).unwrap();
-        let value: GetCountResponse = from_binary(&res).unwrap();
-        assert_eq!(5, value.count);
-    }
+    Ok(Response::new()
+        .add_attribute("method", "place_building")
+        .add_attribute("ville_id", ville_id.to_string())
+        .add_attribute("building_id", building_id.to_string()))
 }
