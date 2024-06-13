@@ -1,13 +1,24 @@
-use schemars::JsonSchema;
+use cosmwasm_std::Addr;
+use cw_storage_plus::{Item, Map};
 use serde::{Deserialize, Serialize};
 
-use cosmwasm_std::Addr;
-use cw_storage_plus::Item;
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema)]
-pub struct State {
-    pub count: i32,
-    pub owner: Addr,
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct Config {
+    pub admin: Addr,
+    pub ville_nft_contract: Addr,
+    pub building_nft_contract: Addr,
+    pub resource_token_contract: Addr,
+    pub unit_token_contract: Addr,
 }
 
-pub const STATE: Item<State> = Item::new("state");
+pub const CONFIG: Item<Config> = Item::new("config");
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct Player {
+    pub address: Addr,
+    pub ville_id: Option<u64>,
+}
+
+pub const PLAYERS: Map<&Addr, Player> = Map::new("players");
+pub const VILLE_COUNT: Item<u64> = Item::new("ville_count");
+pub const BUILDING_COUNT: Item<u64> = Item::new("building_count");
