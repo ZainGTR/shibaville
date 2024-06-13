@@ -1,26 +1,32 @@
-use cosmwasm_schema::{cw_serde, QueryResponses};
+use cosmwasm_std::Uint128;
+use serde::{Deserialize, Serialize};
 
-#[cw_serde]
-pub struct InstantiateMsg {
-    pub count: i32,
-}
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct InstantiateMsg {}
 
-#[cw_serde]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub enum ExecuteMsg {
-    Increment {},
-    Reset { count: i32 },
+    CreateToken { denom: String, name: String, symbol: String, decimals: u8 },
+    Mint { denom: String, amount: Uint128 },
+    Burn { denom: String, amount: Uint128 },
+    Transfer { recipient: String, denom: String, amount: Uint128 },
 }
 
-#[cw_serde]
-#[derive(QueryResponses)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub enum QueryMsg {
-    // GetCount returns the current count as a json-encoded number
-    #[returns(GetCountResponse)]
-    GetCount {},
+    TokenInfo { denom: String },
+    Balance { owner: String, denom: String },
 }
 
-// We define a custom struct for each query response
-#[cw_serde]
-pub struct GetCountResponse {
-    pub count: i32,
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct TokenInfoResponse {
+    pub name: String,
+    pub symbol: String,
+    pub decimals: u8,
+    pub total_supply: Uint128,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct BalanceResponse {
+    pub balance: Uint128,
 }
