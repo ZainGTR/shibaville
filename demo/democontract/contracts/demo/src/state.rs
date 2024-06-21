@@ -14,4 +14,3 @@ pub struct Building {
 
 pub const BUILDINGS: Map<&String, Building> = Map::new("buildings"); // Maps building id to Building details
 pub const RESOURCES: Map<&Addr, Uint128> = Map::new("resources"); // Maps player address to their resource balance
-

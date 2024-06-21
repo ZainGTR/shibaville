@@ -23,8 +23,8 @@ pub fn execute(
 ) -> Result<Response, StdError> {
     match msg {
         ExecuteMsg::RegisterPlayer { archid } => try_register_player(deps, info, archid),
-        ExecuteMsg::MintBuilding { building_id, ville_id, resource_cost, resource_production } => {
-            try_mint_building(deps, info, building_id, ville_id, resource_cost, resource_production)
+        ExecuteMsg::MintBuilding { building_id, resource_cost, resource_production } => {
+            try_mint_building(deps, info, building_id, resource_cost, resource_production)
         }
         ExecuteMsg::PlaceBuilding { building_id } => try_place_building(deps, info, building_id),
         ExecuteMsg::MintResources { amount } => try_mint_resources(deps, info, amount),
@@ -51,18 +51,18 @@ fn try_mint_building(
     deps: DepsMut,
     info: MessageInfo,
     building_id: String,
-    ville_id: String,
     resource_cost: Uint128,
     resource_production: Uint128,
 ) -> Result<Response, StdError> {
-    let player_addr = VILLES.load(deps.storage, &ville_id)?;
-    if player_addr != info.sender {
-        return Err(StdError::generic_err("Not authorized"));
+    if !PLAYERS.has(deps.storage, &info.sender) {
+        return Err(StdError::generic_err("Player not registered"));
     }
+
+    let archid = PLAYERS.load(deps.storage, &info.sender)?;
 
     let building = Building {
         id: building_id.clone(),
-        ville_id: ville_id.clone(),
+        ville_id: archid.clone(),
         resource_cost,
         resource_production,
     };
@@ -72,7 +72,7 @@ fn try_mint_building(
     Ok(Response::new()
         .add_attribute("method", "mint_building")
         .add_attribute("building_id", building_id)
-        .add_attribute("ville_id", ville_id))
+        .add_attribute("ville_id", archid))
 }
 
 fn try_place_building(
@@ -81,8 +81,8 @@ fn try_place_building(
     building_id: String,
 ) -> Result<Response, StdError> {
     let building = BUILDINGS.load(deps.storage, &building_id)?;
-    let player_addr = VILLES.load(deps.storage, &building.ville_id)?;
-    if player_addr != info.sender {
+    let archid = PLAYERS.load(deps.storage, &info.sender)?;
+    if building.ville_id != archid {
         return Err(StdError::generic_err("Not authorized"));
     }
 

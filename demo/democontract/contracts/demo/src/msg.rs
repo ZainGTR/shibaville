@@ -7,7 +7,7 @@ pub struct InstantiateMsg {}
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub enum ExecuteMsg {
     RegisterPlayer { archid: String },
-    MintBuilding { building_id: String, ville_id: String, resource_cost: Uint128, resource_production: Uint128 },
+    MintBuilding { building_id: String, resource_cost: Uint128, resource_production: Uint128 },
     PlaceBuilding { building_id: String },
     MintResources { amount: Uint128 },
     BurnResources { amount: Uint128 },
