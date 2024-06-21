@@ -1,6 +1,6 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::{
-    entry_point, to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdResult, Addr, WasmMsg,
+    entry_point, to_json_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdResult, Addr, WasmMsg,
 };
 
 use serde::{Deserialize, Serialize};
@@ -114,7 +114,7 @@ fn try_mint_ville(
 
     let exec_msg = WasmMsg::Execute {
         contract_addr: config.ville_nft_contract.to_string(),
-        msg: to_binary(&cw721_base::ExecuteMsg::Mint(mint_msg))?,
+        msg: to_json_binary(&cw721_base::ExecuteMsg::Mint(mint_msg))?,
         funds: vec![],
     };
 
@@ -152,7 +152,7 @@ fn try_mint_building(
 
     let exec_msg = WasmMsg::Execute {
         contract_addr: config.building_nft_contract.to_string(),
-        msg: to_binary(&cw721_base::ExecuteMsg::Mint(mint_msg))?,
+        msg: to_json_binary(&cw721_base::ExecuteMsg::Mint(mint_msg))?,
         funds: vec![],
     };
 
