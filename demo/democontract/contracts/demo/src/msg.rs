@@ -1,11 +1,22 @@
-use cosmwasm_schema::{cw_serde, QueryResponses};
+use cosmwasm_std::Uint128;
+use serde::{Deserialize, Serialize};
 
-#[cw_serde]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct InstantiateMsg {}
 
-#[cw_serde]
-pub enum ExecuteMsg {}
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub enum ExecuteMsg {
+    RegisterPlayer { archid: String },
+    MintBuilding { building_id: String, ville_id: String, resource_cost: Uint128, resource_production: Uint128 },
+    PlaceBuilding { building_id: String },
+    MintResources { amount: Uint128 },
+    BurnResources { amount: Uint128 },
+}
 
-#[cw_serde]
-#[derive(QueryResponses)]
-pub enum QueryMsg {}
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub enum QueryMsg {
+    GetPlayer { address: String },
+    GetVille { archid: String },
+    GetBuilding { building_id: String },
+    GetResources { address: String },
+}
