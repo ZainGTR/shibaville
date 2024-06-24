@@ -1,0 +1,21 @@
+{
+  "name": "shibaville",
+  "version": "1.0.0",
+  "description": "on-chain tower defense game on frax",
+  "main": "index.js",
+  "scripts": {
+    "test": "node test.js"
+  },
+  "keywords": [
+    "frax",
+    "shibaville",
+    "NFTgame",
+    "gameFi"
+  ],
+  "author": "0xShiba",
+  "license": "MIT",
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^5.0.0",
+    "hardhat": "^2.22.5"
+  }
+}
